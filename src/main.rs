@@ -1,113 +1,191 @@
-use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::env;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use anyhow::{anyhow, bail, Error as AnyhowError, Result};
-use lazy_static::lazy_static;
-use regex::Regex;
-use serde::Deserialize;
-use url::Url;
+use ansi_term::{Color, Style};
+use anyhow::{anyhow, Context, Result};
+use glob::Pattern;
+use structopt::{clap::AppSettings, StructOpt};
 
-#[derive(Debug, Deserialize)]
-struct Crates2 {
-    installs: HashMap<PackageSpec, Details>,
-}
+mod package_data;
+use package_data::*;
 
-#[derive(Debug, PartialEq, Eq, Hash, Deserialize)]
-#[serde(try_from = "String")]
-struct PackageSpec {
-    name: String,
-    version: String,
-    source: PackageSource,
-    url: Url,
-}
+const SUBCOMMAND_NAME: &str = "update-installed";
 
-impl FromStr for PackageSpec {
-    type Err = AnyhowError;
+static USE_COLOR: AtomicBool = AtomicBool::new(false);
+static VERBOSE: AtomicBool = AtomicBool::new(false);
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^(\S+) (\S+) \(([^+]+)\+(.+)\)$").unwrap();
-        }
-        let m = RE
-            .captures(s)
-            .ok_or_else(|| anyhow!("couldn't parse package name '{}'", s))?;
-        Ok(Self {
-            name: m.get(1).unwrap().as_str().into(),
-            version: m.get(2).unwrap().as_str().into(),
-            source: m.get(3).unwrap().as_str().parse()?,
-            url: m.get(4).unwrap().as_str().parse()?,
-        })
-    }
-}
+// macros for printing colored stuff.
+// Use ansi_term to match Clap v2, even though it doesn't support Rust's fmt stuff natively
 
-impl TryFrom<String> for PackageSpec {
-    type Error = <Self as FromStr>::Err;
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        s.parse()
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Deserialize)]
-enum PackageSource {
-    Registry,
-    Git,
-    Path,
-}
-
-impl FromStr for PackageSource {
-    type Err = AnyhowError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "registry" => Self::Registry,
-            "git" => Self::Git,
-            "path" => Self::Path,
-            s => bail!("Invalid package source '{}'", s),
-        })
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct Details {
-    version_req: Option<String>,
-    bins: Vec<String>,
-    features: Vec<String>,
-    all_features: bool,
-    no_default_features: bool,
-    profile: String,
-    target: String,
-    rustc: String,
-}
-
-fn crates2_json_path() -> PathBuf {
-    let mut path = match env::var_os("CARGO_HOME") {
-        Some(s) => s.into(),
-        None => {
-            let mut p: PathBuf = env::var_os("HOME").unwrap().into();
-            p.push(".cargo");
-            p
+macro_rules! dbgmsg {
+    ($($arg:tt)*) => {
+        if VERBOSE.load(Ordering::Relaxed) {
+            eprintln!($($arg)*);
         }
     };
-    path.push(".crates2.json");
-    path
+}
+
+macro_rules! msg {
+    ($($arg:tt)*) => {
+        style_eprintln!(Color::Cyan, $($arg)*);
+    };
+}
+
+macro_rules! errmsg {
+    ($($arg:tt)*) => {
+        style_eprintln!(Color::Red, $($arg)*);
+    };
+}
+
+macro_rules! style_eprintln {
+    ($color: expr, $($arg:tt)*) => {
+        style_eprintln_impl($color, format_args!($($arg)*));
+    };
+}
+
+fn style_eprintln_impl<S: Into<Style>>(style: S, fargs: std::fmt::Arguments) {
+    if USE_COLOR.load(Ordering::Relaxed) {
+        let style = style.into();
+        eprintln!("{}{}{}", style.prefix(), fargs, style.suffix());
+    } else {
+        eprintln!("{}", fargs);
+    }
+}
+
+/// give Vec<String> builder semantics to work like std::process::Command::arg()
+pub trait PushStr {
+    fn push_str(&mut self, s: impl AsRef<str>) -> &mut Self;
+}
+
+impl PushStr for Vec<String> {
+    fn push_str(&mut self, s: impl AsRef<str>) -> &mut Self {
+        self.push(String::from(s.as_ref()));
+        self
+    }
+}
+
+/// Update all local packages installed by Cargo.
+///
+/// Read Cargo's metadata to list all local user-installed Rust packages and run `cargo install` on
+/// them again to update to the latest version.
+#[derive(Debug, StructOpt)]
+#[structopt(
+    bin_name = "cargo update-installed",
+    max_term_width(90),
+    setting(AppSettings::ColoredHelp),
+    setting(AppSettings::NoBinaryName),
+    setting(AppSettings::UnifiedHelpMessage)
+)]
+struct Args {
+    /// Dry-run: only list which packages would be updated
+    #[structopt(short = "n", long)]
+    dry_run: bool,
+
+    /// Force reinstalling up-to-date packages (i.e. pass the `--force` flag to `cargo install`)
+    #[structopt(short, long)]
+    force: bool,
+
+    /// Enable verbose output, including the full cargo commands executed
+    #[structopt(short, long)]
+    verbose: bool,
+
+    /// Include matching packages
+    ///
+    /// PATTERN is a glob pattern matched against the package's name. If any include patterns are
+    /// specified, then include patches which match any of them. If no include patterns are
+    /// specified, then include all installed packages.
+    #[structopt(short, long, value_name = "PATTERN", number_of_values(1))]
+    include: Vec<Pattern>,
+
+    /// Exclude matching packages
+    ///
+    /// Like --include, but exclude pachages with matching names. --exclude overrides --include.
+    #[structopt(short, long, value_name = "PATTERN", number_of_values(1))]
+    exclude: Vec<Pattern>,
+}
+
+impl Args {
+    /// Parse Args, handling both cases when being running directly and as a cargo subcommand.
+    /// In subcommand mode, cargo sets argv[1] to "update-installed", which we skip.
+    fn parse() -> Self {
+        // always skip argv[0], used with AppSettings::NoBinaryName
+        let mut args = env::args_os().skip(1).peekable();
+        if let Some(Some(SUBCOMMAND_NAME)) = args.peek().map(|s| s.to_str()) {
+            args.next();
+        }
+        Self::from_iter(args)
+    }
+
+    /// Decide whether to include a package, based on --include/--exclude globs
+    fn should_include(&self, s: &str) -> bool {
+        if self.exclude.iter().any(|p| p.matches(s)) {
+            false
+        } else if self.include.is_empty() {
+            true
+        } else {
+            self.include.iter().any(|p| p.matches(s))
+        }
+    }
 }
 
 fn run() -> Result<()> {
-    let file = BufReader::new(File::open(&crates2_json_path())?);
-    let parsed = serde_json::from_reader::<_, Crates2>(file)?;
-    dbg!(&parsed);
+    let args = Args::parse();
+    VERBOSE.store(args.verbose, Ordering::Relaxed);
+    USE_COLOR.store(atty::is(atty::Stream::Stdout), Ordering::Relaxed);
 
-    Ok(())
+    let crates2 = Crates2::load().context("Failed to load .crates2.json")?;
+
+    let cargo_exe = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    dbgmsg!("Using Cargo executable '{}'", cargo_exe.to_string_lossy());
+
+    let mut failed = Vec::new();
+    for (pkg_id, details) in crates2.installs.iter() {
+        let pkg = pkg_id
+            .parse::<Package>()
+            .with_context(|| format!("Failed to parse package id '{}'", pkg_id))?;
+
+        if !args.should_include(&pkg.name) {
+            msg!("Skipping {}", pkg.name);
+            continue;
+        }
+
+        let mut cargo_args = vec!["install".to_owned()];
+        if args.force {
+            cargo_args.push_str("--force");
+        }
+        details.add_cargo_args(&mut cargo_args);
+        pkg.source.add_cargo_args(&mut cargo_args);
+        cargo_args.push_str(&pkg.name);
+
+        let mut cmd = Command::new(&cargo_exe);
+        cmd.args(&cargo_args);
+
+        msg!("Updating {}", pkg.name);
+        dbgmsg!("{} {}", cargo_exe.to_string_lossy(), cargo_args.join(" "));
+
+        if args.dry_run {
+            continue;
+        }
+
+        let status = cmd.status().context("Failed to execute `cargo install ...`")?;
+
+        if !status.success() {
+            errmsg!("Error: failed to install '{}'", pkg.name);
+            failed.push(pkg.name.clone());
+        }
+    }
+
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow!("Failed to install some packages: {}", failed.join(", ")))
+    }
 }
 
 fn main() {
     if let Err(e) = run() {
-        eprintln!("Error: {:#}", e);
+        errmsg!("Error: {:#}", e);
         std::process::exit(1);
     }
 }
