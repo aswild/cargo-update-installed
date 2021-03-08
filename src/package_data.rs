@@ -65,14 +65,8 @@ impl FromStr for PackageSource {
         // url::Url supports parsing arbitrary schemes (e.g. "git+https") but it doesn't allow
         // changing the scheme arbitrarily. Thus, we need to strip off the "kind+" prefix before
         // parsing the rest as a URL.
-        // str::split_once will be perfect here when it's stabilized in 1.52
-        let (kind, url) = match s.find('+') {
-            Some(n) => {
-                let sp = s.split_at(n);
-                (sp.0, &sp.1[1..])
-            }
-            None => bail!("No package source kind found"),
-        };
+        let (kind, url) =
+            s.split_once('+').ok_or_else(|| anyhow!("No package source kind found"))?;
         ensure!(!url.is_empty(), "Package source URL is empty");
 
         // now parse the rest as a url
