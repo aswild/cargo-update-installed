@@ -1,11 +1,12 @@
 use std::env;
+use std::io::Write;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use ansi_term::{Color, Style};
 use anyhow::{anyhow, Context, Result};
 use clap::{AppSettings, Clap};
 use glob::Pattern;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 mod package_data;
 use package_data::*;
@@ -16,7 +17,6 @@ static USE_COLOR: AtomicBool = AtomicBool::new(false);
 static VERBOSE: AtomicBool = AtomicBool::new(false);
 
 // macros for printing colored stuff.
-// Use ansi_term to match Clap v2, even though it doesn't support Rust's fmt stuff natively
 
 macro_rules! dbgmsg {
     ($($arg:tt)*) => {
@@ -28,26 +28,23 @@ macro_rules! dbgmsg {
 
 macro_rules! msg {
     ($($arg:tt)*) => {
-        style_eprintln!(Color::Cyan, $($arg)*);
+        color_println(Color::Cyan, format_args!($($arg)*));
     };
 }
 
 macro_rules! errmsg {
     ($($arg:tt)*) => {
-        style_eprintln!(Color::Red, $($arg)*);
+        color_println(Color::Red, format_args!($($arg)*));
     };
 }
 
-macro_rules! style_eprintln {
-    ($color: expr, $($arg:tt)*) => {
-        style_eprintln_impl($color, format_args!($($arg)*));
-    };
-}
-
-fn style_eprintln_impl<S: Into<Style>>(style: S, fargs: std::fmt::Arguments) {
+#[allow(unused_must_use)]
+fn color_println(color: Color, fargs: std::fmt::Arguments) {
     if USE_COLOR.load(Ordering::Relaxed) {
-        let style = style.into();
-        eprintln!("{}{}{}", style.prefix(), fargs, style.suffix());
+        let mut out = StandardStream::stderr(ColorChoice::Always);
+        out.set_color(ColorSpec::new().set_fg(Some(color)));
+        writeln!(out, "{}", fargs);
+        out.reset();
     } else {
         eprintln!("{}", fargs);
     }
