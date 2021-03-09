@@ -69,24 +69,12 @@ impl PushStr for Vec<String> {
 #[derive(Debug, Clap)]
 #[clap(
     bin_name = "cargo update-installed",
-    max_term_width(90),
     setting(AppSettings::ColoredHelp),
+    setting(AppSettings::DeriveDisplayOrder),
     setting(AppSettings::NoBinaryName),
     setting(AppSettings::UnifiedHelpMessage)
 )]
 struct Args {
-    /// Dry-run: only list which packages would be updated
-    #[clap(short = 'n', long)]
-    dry_run: bool,
-
-    /// Force reinstalling up-to-date packages (i.e. pass the `--force` flag to `cargo install`)
-    #[clap(short, long)]
-    force: bool,
-
-    /// Enable verbose output, including the full cargo commands executed
-    #[clap(short, long)]
-    verbose: bool,
-
     /// Include matching packages
     ///
     /// PATTERN is a glob pattern matched against the package's name. If any include patterns are
@@ -100,6 +88,18 @@ struct Args {
     /// Like --include, but exclude pachages with matching names. --exclude overrides --include.
     #[clap(short, long, value_name = "PATTERN", number_of_values(1))]
     exclude: Vec<Pattern>,
+
+    /// Force reinstalling up-to-date packages (i.e. pass the `--force` flag to `cargo install`)
+    #[clap(short, long)]
+    force: bool,
+
+    /// Dry-run: only list which packages would be updated
+    #[clap(short = 'n', long)]
+    dry_run: bool,
+
+    /// Enable verbose output, including the full cargo commands executed
+    #[clap(short, long)]
+    verbose: bool,
 }
 
 impl Args {
