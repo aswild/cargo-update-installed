@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use ansi_term::{Color, Style};
 use anyhow::{anyhow, Context, Result};
+use clap::{AppSettings, Clap};
 use glob::Pattern;
-use structopt::{clap::AppSettings, StructOpt};
 
 mod package_data;
 use package_data::*;
@@ -69,8 +69,8 @@ impl PushStr for Vec<String> {
 ///
 /// Read Cargo's metadata to list all local user-installed Rust packages and run `cargo install` on
 /// them again to update to the latest version.
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Debug, Clap)]
+#[clap(
     bin_name = "cargo update-installed",
     max_term_width(90),
     setting(AppSettings::ColoredHelp),
@@ -79,15 +79,15 @@ impl PushStr for Vec<String> {
 )]
 struct Args {
     /// Dry-run: only list which packages would be updated
-    #[structopt(short = "n", long)]
+    #[clap(short = 'n', long)]
     dry_run: bool,
 
     /// Force reinstalling up-to-date packages (i.e. pass the `--force` flag to `cargo install`)
-    #[structopt(short, long)]
+    #[clap(short, long)]
     force: bool,
 
     /// Enable verbose output, including the full cargo commands executed
-    #[structopt(short, long)]
+    #[clap(short, long)]
     verbose: bool,
 
     /// Include matching packages
@@ -95,13 +95,13 @@ struct Args {
     /// PATTERN is a glob pattern matched against the package's name. If any include patterns are
     /// specified, then include patches which match any of them. If no include patterns are
     /// specified, then include all installed packages.
-    #[structopt(short, long, value_name = "PATTERN", number_of_values(1))]
+    #[clap(short, long, value_name = "PATTERN", number_of_values(1))]
     include: Vec<Pattern>,
 
     /// Exclude matching packages
     ///
     /// Like --include, but exclude pachages with matching names. --exclude overrides --include.
-    #[structopt(short, long, value_name = "PATTERN", number_of_values(1))]
+    #[clap(short, long, value_name = "PATTERN", number_of_values(1))]
     exclude: Vec<Pattern>,
 }
 
@@ -114,7 +114,7 @@ impl Args {
         if let Some(Some(SUBCOMMAND_NAME)) = args.peek().map(|s| s.to_str()) {
             args.next();
         }
-        Self::from_iter(args)
+        Self::parse_from(args)
     }
 
     /// Decide whether to include a package, based on --include/--exclude globs
