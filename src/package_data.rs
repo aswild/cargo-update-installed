@@ -39,8 +39,8 @@ impl Crates2 {
         let file = BufReader::new(
             File::open(&path).with_context(|| format!("Failed to open '{}'", path.display()))?,
         );
-        Ok(serde_json::from_reader(file)
-            .with_context(|| format!("Failed to parse '{}'", path.display()))?)
+        serde_json::from_reader(file)
+            .with_context(|| format!("Failed to parse '{}'", path.display()))
     }
 }
 
@@ -91,8 +91,8 @@ impl FromStr for PackageSource {
         url.set_query(None);
 
         Ok(match kind {
-            "registry" => Self::Registry(url.into_string()),
-            "git" => Self::Git { url: url.into_string(), branch, tag },
+            "registry" => Self::Registry(url.into()),
+            "git" => Self::Git { url: url.into(), branch, tag },
             "path" => Self::Path(url.path().to_owned()),
             k => bail!("Unknown package source kind '{}'", k),
         })
