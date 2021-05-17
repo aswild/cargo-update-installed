@@ -14,43 +14,6 @@ use url::Url;
 
 use crate::PushStr;
 
-#[rustversion::before(1.52)]
-mod str_split_once_polyfill {
-    pub trait StrSplitOnce {
-        fn split_once(&self, delim: char) -> Option<(&str, &str)>;
-    }
-
-    impl StrSplitOnce for str {
-        fn split_once(&self, delim: char) -> Option<(&str, &str)> {
-            match self.find(delim) {
-                Some(idx) => {
-                    let (left, right) = self.split_at(idx);
-                    Some((left, &right[1..]))
-                }
-                None => None,
-            }
-        }
-    }
-
-    #[cfg(test)]
-    #[test]
-    fn test_split_once() {
-        #[rustfmt::skip]
-        macro_rules! check {
-            ($in:expr, None) => { assert_eq!($in.split_once('+'), None); };
-            ($in:expr, $l:expr, $r:expr) => { assert_eq!($in.split_once('+'), Some(($l, $r))); };
-        }
-        check!("", None);
-        check!("foo", None);
-        check!("foo+", "foo", "");
-        check!("foo+bar", "foo", "bar");
-        check!("+bar", "", "bar");
-        check!("foo+bar+baz", "foo", "bar+baz");
-    }
-}
-#[rustversion::before(1.52)]
-use str_split_once_polyfill::*;
-
 /// Top-level deserialized struct of .crates2.json.
 /// Note: this metadata format probably isn't "stable" and future Cargo versions might break this.
 #[derive(Debug, Deserialize)]
