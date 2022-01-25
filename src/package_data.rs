@@ -111,9 +111,10 @@ impl PackageSource {
                 if let Some(t) = tag {
                     args.push_str("--tag").push_str(t);
                 }
+                args.push_str("--locked");
                 args
             }
-            Self::Path(path) => args.push_str("--path").push_str(path),
+            Self::Path(path) => args.push_str("--path").push_str(path).push_str("--locked"),
         };
     }
 }

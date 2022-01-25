@@ -70,7 +70,7 @@ impl PushStr for Vec<String> {
 #[clap(
     bin_name = "cargo update-installed",
     setting(AppSettings::DeriveDisplayOrder),
-    setting(AppSettings::NoBinaryName),
+    setting(AppSettings::NoBinaryName)
 )]
 struct Args {
     /// Include matching packages
