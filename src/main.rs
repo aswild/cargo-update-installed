@@ -4,7 +4,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{anyhow, Context, Result};
-use clap::{AppSettings, Clap};
+use clap::{AppSettings, Parser};
 use glob::Pattern;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
@@ -66,13 +66,11 @@ impl PushStr for Vec<String> {
 ///
 /// Read Cargo's metadata to list all local user-installed Rust packages and run `cargo install` on
 /// them again to update to the latest version.
-#[derive(Debug, Clap)]
+#[derive(Debug, Parser)]
 #[clap(
     bin_name = "cargo update-installed",
-    setting(AppSettings::ColoredHelp),
     setting(AppSettings::DeriveDisplayOrder),
     setting(AppSettings::NoBinaryName),
-    setting(AppSettings::UnifiedHelpMessage)
 )]
 struct Args {
     /// Include matching packages
