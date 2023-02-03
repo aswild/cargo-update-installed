@@ -1,5 +1,3 @@
-#![allow(unstable_name_collisions)]
-
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::File;
@@ -77,7 +75,7 @@ impl FromStr for PackageSource {
         // git URLs put the revision in the fragment, which we don't actually care about - yeet it
         url.set_fragment(None);
 
-        // git URLs put the branch/tag into the fragment, which we do want to save
+        // git URLs put the branch/tag into the query params, which we do want to save
         let mut branch = None;
         let mut tag = None;
         for (key, val) in url.query_pairs() {

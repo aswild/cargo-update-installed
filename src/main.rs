@@ -4,7 +4,7 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{anyhow, Context, Result};
-use clap::{AppSettings, Parser};
+use clap::Parser;
 use glob::Pattern;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
@@ -67,36 +67,32 @@ impl PushStr for Vec<String> {
 /// Read Cargo's metadata to list all local user-installed Rust packages and run `cargo install` on
 /// them again to update to the latest version.
 #[derive(Debug, Parser)]
-#[clap(
-    bin_name = "cargo update-installed",
-    setting(AppSettings::DeriveDisplayOrder),
-    setting(AppSettings::NoBinaryName)
-)]
+#[command(bin_name = "cargo update-installed", no_binary_name = true, version)]
 struct Args {
     /// Include matching packages
     ///
     /// PATTERN is a glob pattern matched against the package's name. If any include patterns are
     /// specified, then include patches which match any of them. If no include patterns are
     /// specified, then include all installed packages.
-    #[clap(short, long, value_name = "PATTERN", number_of_values(1))]
+    #[arg(short, long, value_name = "PATTERN")]
     include: Vec<Pattern>,
 
     /// Exclude matching packages
     ///
-    /// Like --include, but exclude pachages with matching names. --exclude overrides --include.
-    #[clap(short, long, value_name = "PATTERN", number_of_values(1))]
+    /// Like --include, but exclude packages with matching names. --exclude overrides --include.
+    #[arg(short, long, value_name = "PATTERN")]
     exclude: Vec<Pattern>,
 
-    /// Force reinstalling up-to-date packages (i.e. pass the `--force` flag to `cargo install`)
-    #[clap(short, long)]
+    /// Force reinstalling up-to-date packages (i.e. pass the `--force` flag to `cargo install`).
+    #[arg(short, long)]
     force: bool,
 
-    /// Dry-run: only list which packages would be updated
-    #[clap(short = 'n', long)]
+    /// Dry-run: only list packages which we would attempt to update.
+    #[arg(short = 'n', long)]
     dry_run: bool,
 
-    /// Enable verbose output, including the full cargo commands executed
-    #[clap(short, long)]
+    /// Enable verbose output, including the full cargo commands executed.
+    #[arg(short, long)]
     verbose: bool,
 }
 
@@ -104,12 +100,12 @@ impl Args {
     /// Parse Args, handling both cases when being running directly and as a cargo subcommand.
     /// In subcommand mode, cargo sets argv[1] to "update-installed", which we skip.
     fn parse() -> Self {
-        // always skip argv[0], used with AppSettings::NoBinaryName
+        // always skip argv[0], used with no_binary_name
         let mut args = env::args_os().skip(1).peekable();
         if let Some(Some(SUBCOMMAND_NAME)) = args.peek().map(|s| s.to_str()) {
             args.next();
         }
-        Self::parse_from(args)
+        <Self as Parser>::parse_from(args)
     }
 
     /// Decide whether to include a package, based on --include/--exclude globs

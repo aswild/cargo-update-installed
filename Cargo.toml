@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 atty = "0.2"
-clap = { version = "3", features = ["cargo", "derive"] }
+clap = { version = "4.1", features = ["cargo", "deprecated", "derive", "wrap_help"] }
 dirs = "4"
 glob = "0.3"
 lazy_static = "1.4"
