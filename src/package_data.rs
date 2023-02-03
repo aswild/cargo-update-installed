@@ -5,7 +5,7 @@ use std::io::BufReader;
 use std::str::FromStr;
 
 use anyhow::{anyhow, bail, ensure, Context, Error as AnyhowError, Result};
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
 use url::Url;
@@ -132,9 +132,8 @@ impl FromStr for Package {
     /// bcut 1.0.2 (git+https://github.com/aswild/bcut#046894ca312298f260775687a87bd1f3b7df8e55)
     /// cargo-update-installed 0.1.0 (path+file:///workspace/cargo-update-installed)
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"^(\S+) (\S+) \((.+)\)$").unwrap();
-        }
+        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(\S+) (\S+) \((.+)\)$").unwrap());
+
         let m = RE.captures(s).ok_or_else(|| anyhow!("couldn't parse package name '{}'", s))?;
         Ok(Self {
             name: m.get(1).unwrap().as_str().into(),

@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use glob::Pattern;
+use is_terminal::IsTerminal;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 mod package_data;
@@ -123,7 +124,7 @@ impl Args {
 fn run() -> Result<()> {
     let args = Args::parse();
     VERBOSE.store(args.verbose, Ordering::Relaxed);
-    USE_COLOR.store(atty::is(atty::Stream::Stdout), Ordering::Relaxed);
+    USE_COLOR.store(std::io::stdout().is_terminal(), Ordering::Relaxed);
 
     let crates2 = Crates2::load().context("Failed to load .crates2.json")?;
 
