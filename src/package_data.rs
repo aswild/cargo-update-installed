@@ -82,7 +82,7 @@ impl FromStr for PackageSource {
             match key.as_ref() {
                 "branch" => branch = Some(val.into_owned()),
                 "tag" => tag = Some(val.into_owned()),
-                k => bail!("Unknown URL query parameter '{}'", k),
+                k => bail!("Unknown URL query parameter '{k}'"),
             }
         }
         // yeet the query parameters now that we've saved them
@@ -92,7 +92,7 @@ impl FromStr for PackageSource {
             "registry" => Self::Registry(url.into()),
             "git" => Self::Git { url: url.into(), branch, tag },
             "path" => Self::Path(url.path().to_owned()),
-            k => bail!("Unknown package source kind '{}'", k),
+            k => bail!("Unknown package source kind '{k}'"),
         })
     }
 }
@@ -133,7 +133,7 @@ impl FromStr for Package {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(\S+) (\S+) \((.+)\)$").unwrap());
 
-        let m = RE.captures(s).ok_or_else(|| anyhow!("couldn't parse package name '{}'", s))?;
+        let m = RE.captures(s).ok_or_else(|| anyhow!("couldn't parse package name '{s}'"))?;
         Ok(Self {
             name: m.get(1).unwrap().as_str().into(),
             version: m.get(2).unwrap().as_str().into(),

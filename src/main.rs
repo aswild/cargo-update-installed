@@ -44,10 +44,10 @@ fn color_println(color: Color, fargs: std::fmt::Arguments) {
     if USE_COLOR.load(Ordering::Relaxed) {
         let mut out = StandardStream::stderr(ColorChoice::Always);
         out.set_color(ColorSpec::new().set_fg(Some(color)));
-        writeln!(out, "{}", fargs);
+        writeln!(out, "{fargs}");
         out.reset();
     } else {
-        eprintln!("{}", fargs);
+        eprintln!("{fargs}");
     }
 }
 
@@ -142,7 +142,7 @@ fn run() -> Result<()> {
     for (pkg_id, details) in crates2.installs.iter() {
         let pkg = pkg_id
             .parse::<Package>()
-            .with_context(|| format!("Failed to parse package id '{}'", pkg_id))?;
+            .with_context(|| format!("Failed to parse package id '{pkg_id}'"))?;
 
         if !args.should_include(&pkg.name) {
             msg!("Skipping {}", pkg.name);
@@ -187,7 +187,7 @@ fn run() -> Result<()> {
 
 fn main() {
     if let Err(e) = run() {
-        errmsg!("Error: {:#}", e);
+        errmsg!("Error: {e:#}");
         std::process::exit(1);
     }
 }
