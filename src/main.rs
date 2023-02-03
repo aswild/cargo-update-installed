@@ -84,9 +84,16 @@ struct Args {
     #[arg(short, long, value_name = "PATTERN")]
     exclude: Vec<Pattern>,
 
-    /// Force reinstalling up-to-date packages (i.e. pass the `--force` flag to `cargo install`).
+    /// Force reinstalling up-to-date packages (i.e. pass `--force` to `cargo install`).
     #[arg(short, long)]
     force: bool,
+
+    /// Honor Cargo.lock in the source (i.e. pass `--locked` to `cargo install`).
+    ///
+    /// By default, `cargo install` builds with the latest semver-compatible versions of
+    /// dependencies, ignoring any Cargo.lock file in the source repository.
+    #[arg(short = 'L', long)]
+    locked: bool,
 
     /// Dry-run: only list packages which we would attempt to update.
     #[arg(short = 'n', long)]
@@ -145,6 +152,9 @@ fn run() -> Result<()> {
         let mut cargo_args = vec!["install".to_owned()];
         if args.force {
             cargo_args.push_str("--force");
+        }
+        if args.locked {
+            cargo_args.push_str("--locked");
         }
         details.add_cargo_args(&mut cargo_args);
         pkg.source.add_cargo_args(&mut cargo_args);
